@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>地图框选示例</title>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        #controlPanel {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+        }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDqijJYRZ_VE5NspD_mo1lZqcbbM2D7GEE&libraries=drawing&callback=initMap"
+            async defer></script>
+    <script>
+        let map;
+        let drawingManager;
+        let selectedArea = null;
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: -34.397, lng: 150.644},
+                zoom: 8,
+            });
+
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: null,
+                drawingControl: false,
+                rectangleOptions: {
+                    strokeWeight: 0,
+                    fillOpacity: 0.45,
+                    editable: true,
+                    draggable: true,
+                },
+            });
+            drawingManager.setMap(map);
+
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+                if (selectedArea) {
+                    selectedArea.setMap(null);
+                }
+                selectedArea = event.overlay;
+                selectedArea.type = event.type;
+                getSelectedAreaCoordinates(selectedArea);
+                drawingManager.setDrawingMode(null); // Reset drawing mode
+            });
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') {
+                    drawingManager.setDrawingMode(null);
+                }
+            });
+        }
+
+        function activateDrawingMode() {
+            drawingManager.setDrawingMode(google.maps.drawing.OverlayType.RECTANGLE);
+        }
+
+        function getSelectedAreaCoordinates(selectedArea) {
+            const ne = selectedArea.getBounds().getNorthEast();
+            const sw = selectedArea.getBounds().getSouthWest();
+
+            fetch('/get-city-count', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ne: ne.toJSON(), sw: sw.toJSON()}),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    alert(`中国地级以上城市数量: ${data.count}`);
+                    // 移除框选区域
+                    selectedArea.setMap(null);
+                    selectedArea = null; // 清除 selectedArea 引用
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    // 也应该在出错时移除框选区域
+                    selectedArea.setMap(null);
+                    selectedArea = null;
+                });
+        }
+    </script>
+</head>
+<body>
+<div id="controlPanel">
+    <button id="activateButton" onclick="activateDrawingMode()">激活框选</button>
+</div>
+<div id="map"></div>
+</body>
+</html>
